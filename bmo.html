@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BMO Card Game</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #2c3e50;
+        color: white;
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .area {
+        width: 100%;
+        max-width: 800px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 10px 0;
+        position: relative;
+        min-height: 120px;
+      }
+      .hand {
+        display: flex;
+        gap: 10px;
+        overflow-x: auto;
+        padding: 10px;
+        width: 100%;
+        justify-content: center;
+      }
+      .card {
+        width: 80px;
+        height: 120px;
+        border-radius: 8px;
+        background-color: white;
+        color: black;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-weight: bold;
+        font-size: 14px;
+        cursor: pointer;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        text-align: center;
+        padding: 5px;
+        user-select: none;
+        border: 3px solid transparent;
+        transition: transform 0.1s;
+      }
+      .card.selected {
+        border-color: #f1c40f;
+        transform: translateY(-10px);
+        position: relative;
+      }
+      .card.selected::after {
+        content: attr(data-order);
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #e74c3c;
+        color: white;
+        border-radius: 50%;
+        width: 22px;
+        height: 22px;
+        font-size: 14px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      }
+
+      .card.red {
+        background-color: #e74c3c;
+        color: white;
+      }
+      .card.blue {
+        background-color: #3498db;
+        color: white;
+      }
+      .card.green {
+        background-color: #2ecc71;
+        color: white;
+      }
+      .card.yellow {
+        background-color: #f1c40f;
+        color: black;
+      }
+      .card.action {
+        background-color: #9b59b6;
+        color: white;
+        font-size: 12px;
+      }
+
+      .pile {
+        width: 80px;
+        height: 120px;
+        border-radius: 8px;
+        border: 2px dashed #ecf0f1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0 20px;
+        background-color: rgba(255, 255, 255, 0.1);
+        cursor: pointer;
+      }
+      .controls {
+        display: flex;
+        gap: 15px;
+        margin-top: 20px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        border: none;
+        border-radius: 5px;
+        background-color: #34495e;
+        color: white;
+        transition: 0.2s;
+      }
+      button:hover {
+        background-color: #2c3e50;
+      }
+      button.bmo-btn {
+        background-color: #e67e22;
+      }
+      button.play-btn {
+        background-color: #27ae60;
+      }
+      button.danger-btn {
+        background-color: #c0392b;
+      }
+
+      #status {
+        font-size: 18px;
+        margin-bottom: 10px;
+        color: #f1c40f;
+        text-align: center;
+        min-height: 24px;
+      }
+
+      #current-state-display {
+        background-color: rgba(0, 0, 0, 0.3);
+        padding: 10px 20px;
+        border-radius: 8px;
+        margin: 10px 0;
+        font-size: 16px;
+      }
+
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+      .modal-content {
+        background: #34495e;
+        padding: 20px 40px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+        max-width: 400px;
+      }
+      .modal-content h3 {
+        margin-top: 0;
+      }
+      .modal-buttons {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 15px;
+      }
+      .color-btn,
+      .guess-btn {
+        width: 80px;
+        height: 40px;
+        font-size: 14px;
+      }
+      .color-btn.red,
+      .guess-btn.red {
+        background-color: #e74c3c;
+      }
+      .color-btn.blue,
+      .guess-btn.blue {
+        background-color: #3498db;
+      }
+      .color-btn.green,
+      .guess-btn.green {
+        background-color: #2ecc71;
+      }
+      .color-btn.yellow,
+      .guess-btn.yellow {
+        background-color: #f1c40f;
+        color: black;
+      }
+      .guess-btn.action {
+        background-color: #9b59b6;
+      }
+
+      .history-content {
+        max-width: 600px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .history-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        overflow-y: auto;
+        padding: 10px;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+      }
+      .history-list .card {
+        width: 60px;
+        height: 90px;
+        font-size: 12px;
+        cursor: default;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>BMO 卡牌對戰</h2>
+    <div id="status">遊戲初始化中...</div>
+
+    <div>對手手牌 (Bot)</div>
+    <div class="area" id="bot-area">
+      <div class="hand" id="bot-hand"></div>
+    </div>
+
+    <div class="area">
+      <div
+        class="pile"
+        id="draw-pile"
+        onclick="drawCard('player')"
+        title="點擊抽牌"
+      >
+        抽牌堆<br />(點擊)
+      </div>
+      <div
+        class="pile card"
+        id="discard-pile"
+        style="border: none"
+        onclick="showHistory()"
+        title="點擊查看歷史紀錄"
+      >
+        無
+      </div>
+    </div>
+
+    <div id="current-state-display">
+      當前狀態 👉 顏色:
+      <span id="color-val" style="font-weight: bold">無</span> | 數字:
+      <span id="number-val" style="font-weight: bold">無</span>
+    </div>
+
+    <div>你的手牌</div>
+    <div class="area" id="player-area">
+      <div class="hand" id="player-hand"></div>
+    </div>
+
+    <div class="controls">
+      <button class="bmo-btn" onclick="toggleBmo()">喊 BMO!</button>
+      <button class="play-btn" onclick="playSelectedCards()">出牌</button>
+    </div>
+
+    <div id="colorPickerModal" class="modal-overlay" style="display: none">
+      <div class="modal-content">
+        <h3>請選擇指定的顏色</h3>
+        <div class="modal-buttons">
+          <button class="color-btn red" onclick="setColor('red')">紅色</button>
+          <button class="color-btn blue" onclick="setColor('blue')">
+            藍色
+          </button>
+          <button class="color-btn green" onclick="setColor('green')">
+            綠色
+          </button>
+          <button class="color-btn yellow" onclick="setColor('yellow')">
+            黃色
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="counterPromptModal" class="modal-overlay" style="display: none">
+      <div class="modal-content">
+        <h3 style="color: #e74c3c">⚠️ 發動反制！</h3>
+        <p id="counterPromptText"></p>
+        <div class="modal-buttons">
+          <button class="danger-btn" onclick="executeCounter('player')">
+            發動「抵銷」！
+          </button>
+          <button class="bmo-btn" onclick="declineCounter()">保留不發動</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="guessModal" class="modal-overlay" style="display: none">
+      <div class="modal-content">
+        <h3>對方喊了BMO！請猜對手最後一張牌</h3>
+        <p style="font-size: 14px; color: #ecf0f1">
+          猜對對方抽2張，猜錯你被罰抽2張！
+        </p>
+        <div class="modal-buttons">
+          <button class="guess-btn red" onclick="guessBotCard('red')">
+            紅色
+          </button>
+          <button class="guess-btn blue" onclick="guessBotCard('blue')">
+            藍色
+          </button>
+          <button class="guess-btn green" onclick="guessBotCard('green')">
+            綠色
+          </button>
+          <button class="guess-btn yellow" onclick="guessBotCard('yellow')">
+            黃色
+          </button>
+          <button class="guess-btn action" onclick="guessBotCard('action')">
+            功能牌
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="historyModal"
+      class="modal-overlay"
+      style="display: none"
+      onclick="closeHistory()"
+    >
+      <div
+        class="modal-content history-content"
+        onclick="event.stopPropagation()"
+      >
+        <h3>歷史出牌紀錄</h3>
+        <p style="font-size: 12px; margin-top: 0; color: #bdc3c7">
+          (最新的卡牌在最上面)
+        </p>
+        <div id="history-list" class="history-list"></div>
+        <button
+          class="bmo-btn"
+          style="margin-top: 15px; align-self: center"
+          onclick="closeHistory()"
+        >
+          關閉
+        </button>
+      </div>
+    </div>
+
+    <script>
+      const colors = ["red", "blue", "green", "yellow"];
+      let deck = [];
+      let discardPile = [];
+      let playerHand = [];
+      let botHand = [];
+      let currentColor = "";
+      let currentTurn = "player";
+      let bmoCalled = false;
+      let selectedCards = [];
+      let skipNextTurn = false;
+
+      let pendingActionData = null;
+
+      function initDeck() {
+        deck = [];
+        colors.forEach((color) => {
+          for (let i = 0; i <= 8; i++) {
+            deck.push({
+              type: "number",
+              color: color,
+              value: i,
+              id: `num_${color}_${i}_${Math.random()}`,
+            });
+          }
+        });
+
+        const addActionCards = (type, name, count) => {
+          for (let i = 0; i < count; i++)
+            deck.push({
+              type: "action",
+              actionType: type,
+              name: name,
+              color: "action",
+              id: `act_${type}_${Math.random()}`,
+            });
+        };
+
+        addActionCards("draw2", "對方抽2張", 2);
+        addActionCards("wildDraw2", "指定色+抽2", 2);
+        addActionCards("skip", "PASS", 2);
+        addActionCards("bothDraw1", "雙方各抽1張", 2);
+        addActionCards("wild", "指定顏色", 4);
+        addActionCards("steal", "拿取最上層牌", 2);
+        addActionCards("counter", "抵銷(對方抽1)", 2);
+
+        deck.sort(() => Math.random() - 0.5);
+      }
+
+      function safePop() {
+        if (deck.length === 0) {
+          if (discardPile.length > 1) {
+            let topCard = discardPile.pop();
+            deck = discardPile.sort(() => Math.random() - 0.5);
+            discardPile = [topCard];
+            alert("牌庫已重新洗牌！");
+          } else {
+            return null;
+          }
+        }
+        return deck.pop();
+      }
+
+      function drawCards(targetHand, count) {
+        for (let i = 0; i < count; i++) {
+          let card = safePop();
+          if (card) targetHand.push(card);
+        }
+      }
+
+      function dealCards() {
+        for (let i = 0; i < 6; i++) {
+          playerHand.push(safePop());
+          botHand.push(safePop());
+        }
+
+        let firstCard = safePop();
+        while (firstCard.type === "action") {
+          deck.unshift(firstCard);
+          firstCard = safePop();
+        }
+        discardPile.push(firstCard);
+        currentColor = firstCard.color;
+
+        updateUI();
+        setStatus("你的回合，請選擇卡牌點擊出牌。");
+      }
+
+      function isRestrictedEndingCard(card) {
+        return (
+          card.type === "action" &&
+          (card.actionType === "draw2" ||
+            card.actionType === "wildDraw2" ||
+            card.actionType === "wild")
+        );
+      }
+
+      function checkCardMatchPile(card) {
+        const topCard = discardPile[discardPile.length - 1];
+
+        if (card.actionType === "counter") return false;
+
+        if (card.color === "action") return true;
+        if (card.color === currentColor) return true;
+        if (
+          card.type === "number" &&
+          topCard.type === "number" &&
+          card.value === topCard.value
+        )
+          return true;
+        if (
+          card.type === "action" &&
+          topCard.type === "action" &&
+          card.actionType === topCard.actionType
+        )
+          return true;
+        return false;
+      }
+
+      function hasValidPlay(hand) {
+        return hand.some((card) => {
+          if (!checkCardMatchPile(card)) return false;
+          if (hand.length === 1 && isRestrictedEndingCard(card)) return false;
+          return true;
+        });
+      }
+
+      function updateUI() {
+        const topCard = discardPile[discardPile.length - 1];
+        const discardEl = document.getElementById("discard-pile");
+        discardEl.className = `pile card ${topCard.color}`;
+        discardEl.innerHTML =
+          topCard.type === "number" ? topCard.value : topCard.name;
+
+        document.getElementById("color-val").innerText =
+          getTranslatedColor(currentColor);
+        let valText = topCard.type === "number" ? topCard.value : "無";
+        document.getElementById("number-val").innerText = valText;
+
+        const colorMap = {
+          red: "#e74c3c",
+          blue: "#3498db",
+          green: "#2ecc71",
+          yellow: "#f1c40f",
+          action: "#9b59b6",
+        };
+        document.getElementById("color-val").style.color =
+          colorMap[currentColor] || "#fff";
+
+        renderHand("player", playerHand);
+        renderHand("bot", botHand, true);
+      }
+
+      function getTranslatedColor(color) {
+        const map = {
+          red: "紅色",
+          blue: "藍色",
+          green: "綠色",
+          yellow: "黃色",
+          action: "功能牌",
+        };
+        return map[color] || color;
+      }
+
+      function renderHand(owner, hand, hidden = false) {
+        const container = document.getElementById(`${owner}-hand`);
+        container.innerHTML = "";
+        hand.forEach((card, index) => {
+          const cardEl = document.createElement("div");
+          cardEl.className = `card ${hidden ? "" : card.color}`;
+          if (hidden) {
+            cardEl.style.backgroundColor = "#7f8c8d";
+            cardEl.innerText = "BMO";
+          } else {
+            cardEl.innerText = card.type === "number" ? card.value : card.name;
+            cardEl.onclick = () => selectCard(card, cardEl, index);
+          }
+          container.appendChild(cardEl);
+        });
+        if (owner === "bot") {
+          document.getElementById("bot-area").previousElementSibling.innerText =
+            `對手手牌 (Bot) : ${hand.length} 張`;
+        }
+      }
+
+      function selectCard(card, element, index) {
+        if (currentTurn !== "player") return;
+
+        if (card.actionType === "counter") {
+          alert("「抵銷」牌只能在對手打出功能牌的瞬間被動發動喔！");
+          return;
+        }
+
+        const cardIndex = selectedCards.findIndex((c) => c.index === index);
+        if (cardIndex > -1) {
+          selectedCards.splice(cardIndex, 1);
+          element.classList.remove("selected");
+          element.removeAttribute("data-order");
+          selectedCards.forEach((s, i) => {
+            s.element.setAttribute("data-order", i + 1);
+          });
+        } else {
+          selectedCards.push({ card, index, element });
+          element.classList.add("selected");
+          element.setAttribute("data-order", selectedCards.length);
+        }
+      }
+
+      function handleActionCard(card, role) {
+        pendingActionData = { card, role };
+        let needsColor =
+          card.actionType === "wild" || card.actionType === "wildDraw2";
+
+        if (needsColor) {
+          if (role === "player") {
+            document.getElementById("colorPickerModal").style.display = "flex";
+            return;
+          } else {
+            let botColors = botHand
+              .filter((c) => c.type === "number")
+              .map((c) => c.color);
+            currentColor =
+              botColors.length > 0
+                ? botColors[0]
+                : colors[Math.floor(Math.random() * colors.length)];
+            setStatus(`對手將顏色指定為：${getTranslatedColor(currentColor)}`);
+            updateUI();
+          }
+        } else {
+          if (card.color !== "action") currentColor = card.color;
+          updateUI();
+        }
+
+        triggerCounterCheck();
+      }
+
+      function triggerCounterCheck() {
+        let { card, role } = pendingActionData;
+        let opponentRole = role === "player" ? "bot" : "player";
+        let opponentHand = opponentRole === "bot" ? botHand : playerHand;
+
+        let counterIndex = opponentHand.findIndex(
+          (c) => c.actionType === "counter",
+        );
+
+        if (counterIndex !== -1) {
+          if (opponentRole === "bot") {
+            setStatus("對手正在猶豫是否反制...");
+            setTimeout(() => executeCounter("bot"), 1000);
+          } else {
+            document.getElementById("counterPromptModal").style.display =
+              "flex";
+            document.getElementById("counterPromptText").innerText =
+              `對手打出了「${card.name}」準備發動效果！\n是否使用手牌中的「抵銷」來攔截？`;
+          }
+        } else {
+          setStatus(`等待結算...`);
+          setTimeout(() => resolveAction(), 800);
+        }
+      }
+
+      function executeCounter(role) {
+        let { card: originalCard, role: originalRole } = pendingActionData;
+        document.getElementById("counterPromptModal").style.display = "none";
+
+        if (role === "bot") {
+          let counterIndex = botHand.findIndex(
+            (c) => c.actionType === "counter",
+          );
+          let counterCard = botHand.splice(counterIndex, 1)[0];
+          discardPile.push(counterCard);
+
+          alert(
+            `⚠️ Bot 發動了「抵銷」瞬間魔法！\n你的「${originalCard.name}」效果被完全抵銷了！\n你被迫抽 1 張牌，並且回合回到你身上。`,
+          );
+          drawCards(playerHand, 1);
+          currentTurn = "player";
+          setStatus("你的回合！");
+        } else {
+          let counterIndex = playerHand.findIndex(
+            (c) => c.actionType === "counter",
+          );
+          let counterCard = playerHand.splice(counterIndex, 1)[0];
+          discardPile.push(counterCard);
+
+          alert(
+            `⚠️ 你發動了「抵銷」瞬間魔法！\n對手的「${originalCard.name}」效果被完全抵銷了！\n對手被迫抽 1 張牌，並且回合回到對手身上。`,
+          );
+          drawCards(botHand, 1);
+          currentTurn = "bot";
+          setTimeout(botPlay, 1500);
+        }
+
+        pendingActionData = null;
+        updateUI();
+        checkWinState();
+      }
+
+      function declineCounter() {
+        document.getElementById("counterPromptModal").style.display = "none";
+        resolveAction();
+      }
+
+      function resolveAction() {
+        let { card, role } = pendingActionData;
+        let opponentHand = role === "player" ? botHand : playerHand;
+        let myHand = role === "player" ? playerHand : botHand;
+        let roleName = role === "player" ? "你" : "對手";
+
+        if (card.actionType === "draw2") {
+          drawCards(opponentHand, 2);
+          alert(`${roleName} 的「對方抽2張」成功發動！`);
+        } else if (card.actionType === "wildDraw2") {
+          drawCards(opponentHand, 2);
+          alert(`${roleName} 的「指定色+抽2」成功發動！`);
+        } else if (card.actionType === "skip") {
+          skipNextTurn = true;
+          alert(`${roleName} 的「PASS」成功發動！`);
+        } else if (card.actionType === "bothDraw1") {
+          drawCards(myHand, 1);
+          drawCards(opponentHand, 1);
+          alert(`${roleName} 的「雙方各抽1張」成功發動！`);
+        } else if (card.actionType === "steal") {
+          if (discardPile.length >= 2) {
+            let playedSteal = discardPile.pop();
+            let stolenCard = discardPile.pop();
+            myHand.push(stolenCard);
+            discardPile.unshift(playedSteal);
+
+            let newTop = discardPile[discardPile.length - 1];
+            if (newTop.type === "number") currentColor = newTop.color;
+
+            let cardName =
+              stolenCard.type === "number" ? stolenCard.value : stolenCard.name;
+            alert(
+              `${roleName} 的「偷牌」成功發動！從桌面拿走了「${cardName}」。`,
+            );
+          } else {
+            alert("牌堆只有一張牌，偷牌無效！");
+          }
+        }
+
+        pendingActionData = null;
+        updateUI();
+        checkWinState();
+        if (currentTurn === "end") return;
+
+        finalizeTurn(role);
+      }
+
+      function playSelectedCards() {
+        if (currentTurn !== "player") return;
+        if (selectedCards.length === 0) {
+          alert("請先選擇卡牌！");
+          return;
+        }
+
+        let playedCards = selectedCards.map((s) => s.card);
+        let isValid = false;
+        let c1 = playedCards[0];
+
+        if (playedCards.length === 1) {
+          if (checkCardMatchPile(c1)) isValid = true;
+        } else {
+          let allNumbers = playedCards.every((c) => c.type === "number");
+          if (allNumbers) {
+            let isPair = playedCards.every((c) => c.value === c1.value);
+            let isStraight = false;
+            if (playedCards.length === 3) {
+              let isAscending = true;
+              let isDescending = true;
+              for (let i = 0; i < playedCards.length - 1; i++) {
+                if (playedCards[i + 1].value !== (playedCards[i].value + 1) % 9)
+                  isAscending = false;
+                if (
+                  playedCards[i + 1].value !==
+                  (playedCards[i].value - 1 + 9) % 9
+                )
+                  isDescending = false;
+              }
+              isStraight = isAscending || isDescending;
+            }
+            if ((isPair || isStraight) && checkCardMatchPile(c1)) {
+              isValid = true;
+            }
+          }
+        }
+
+        if (isValid && playerHand.length - playedCards.length === 0) {
+          const lastCard = playedCards[playedCards.length - 1];
+          if (isRestrictedEndingCard(lastCard)) {
+            alert(
+              "抽牌、指定色抽牌、萬用指定色 不能當作最後一張出喔！請取消選取並點擊牌堆抽牌。",
+            );
+            return;
+          }
+        }
+
+        if (!isValid) {
+          alert(
+            "出牌無效！請確認牌型，注意「抵銷」只能在對方出功能牌時被動發動。",
+          );
+          selectedCards.forEach((s) => {
+            s.element.classList.remove("selected");
+            s.element.removeAttribute("data-order");
+          });
+          selectedCards = [];
+          return;
+        }
+
+        let indicesToRemove = selectedCards
+          .map((s) => s.index)
+          .sort((a, b) => b - a);
+        indicesToRemove.forEach((idx) => playerHand.splice(idx, 1));
+        playedCards.forEach((card) => discardPile.push(card));
+
+        let finalCard = playedCards[playedCards.length - 1];
+        selectedCards = [];
+
+        if (finalCard.type === "action") {
+          handleActionCard(finalCard, "player");
+        } else {
+          currentColor = finalCard.color;
+          updateUI();
+          checkWinState();
+          if (currentTurn !== "end") finalizeTurn("player");
+        }
+      }
+
+      function setColor(color) {
+        document.getElementById("colorPickerModal").style.display = "none";
+        currentColor = color;
+        updateUI();
+
+        if (pendingActionData) {
+          triggerCounterCheck();
+        }
+      }
+
+      function finalizeTurn(role) {
+        if (role === "player") {
+          if (playerHand.length === 1) {
+            if (!bmoCalled) {
+              alert("你剩下一張牌但沒有喊 BMO！罰抽兩張。");
+              drawCards(playerHand, 2);
+            } else {
+              botGuessPlayerCard();
+              return;
+            }
+          }
+          bmoCalled = false;
+          if (playerHand.length > 0 && currentTurn !== "end") endTurn();
+        } else {
+          if (botHand.length === 1) {
+            document.getElementById("guessModal").style.display = "flex";
+          } else if (botHand.length > 0 && currentTurn !== "end") {
+            endTurn();
+          }
+        }
+      }
+
+      function botGuessPlayerCard() {
+        const guessOptions = ["red", "blue", "green", "yellow", "action"];
+        let botGuess =
+          guessOptions[Math.floor(Math.random() * guessOptions.length)];
+        let lastCard = playerHand[0];
+        let isCorrect =
+          (botGuess === "action" && lastCard.type === "action") ||
+          botGuess === lastCard.color;
+
+        if (isCorrect) {
+          alert(
+            `Bot 喊了：我猜你的牌是【${getTranslatedColor(botGuess)}】！\n😱 Bot 猜中了！你被罰抽兩張牌！`,
+          );
+          drawCards(playerHand, 2);
+        } else {
+          alert(
+            `Bot 喊了：我猜你的牌是【${getTranslatedColor(botGuess)}】！\n😏 Bot 猜錯了！對手被罰抽兩張牌！`,
+          );
+          drawCards(botHand, 2);
+        }
+        updateUI();
+        if (currentTurn !== "end") endTurn();
+      }
+
+      function drawCard(target) {
+        if (currentTurn !== target) return;
+        if (target === "player") {
+          if (hasValidPlay(playerHand)) {
+            alert(
+              "你有符合條件的牌可以出，不能抽牌喔！\n(註：若你只剩禁用尾牌，系統允許你抽牌)",
+            );
+            return;
+          }
+          let card = safePop();
+          if (!card) return;
+
+          playerHand.push(card);
+          bmoCalled = false;
+          updateUI();
+          endTurn();
+        }
+      }
+
+      // ======================
+      // BUG 修復：喊 BMO 的時機判定
+      // ======================
+      function toggleBmo() {
+        // 預期手牌數 = 當前手牌總數 - 已經點選準備打出的卡牌數
+        let expectedHandSize = playerHand.length - selectedCards.length;
+
+        // 只要當前手牌在2張以內，或是「打出這些牌後」預期手牌在2張以內，就允許喊 BMO
+        if (playerHand.length <= 2 || expectedHandSize <= 2) {
+          bmoCalled = true;
+          setStatus("你喊了 BMO！");
+        } else {
+          alert(
+            "還沒到能喊 BMO 的時候！\n(💡提示：如果你打算一次出多張牌(如對子)並讓手牌剩下 1 張，請先「點選好你要出的牌」，再來點擊喊 BMO！)",
+          );
+        }
+      }
+
+      function endTurn() {
+        if (skipNextTurn) {
+          skipNextTurn = false;
+          setStatus(
+            currentTurn === "player"
+              ? "對手被 PASS！你繼續出牌！"
+              : "你被 PASS！對手繼續出牌！",
+          );
+          if (currentTurn === "bot") setTimeout(botPlay, 1500);
+          return;
+        }
+
+        currentTurn = currentTurn === "player" ? "bot" : "player";
+        if (currentTurn === "bot") {
+          setStatus("對手思考中...");
+          setTimeout(botPlay, 1500);
+        } else {
+          setStatus("你的回合！");
+        }
+      }
+
+      function botPlay() {
+        let playableIndex = botHand.findIndex((card) => {
+          if (!checkCardMatchPile(card)) return false;
+          if (botHand.length === 1 && isRestrictedEndingCard(card))
+            return false;
+          return true;
+        });
+
+        if (playableIndex !== -1) {
+          let playedCard = botHand.splice(playableIndex, 1)[0];
+          discardPile.push(playedCard);
+
+          if (playedCard.type === "action") {
+            handleActionCard(playedCard, "bot");
+          } else {
+            currentColor = playedCard.color;
+            updateUI();
+            checkWinState();
+            if (currentTurn !== "end") finalizeTurn("bot");
+          }
+        } else {
+          let card = safePop();
+          if (card) botHand.push(card);
+          setStatus(`對手沒牌出，抽了一張。`);
+          updateUI();
+          if (currentTurn !== "end") finalizeTurn("bot");
+        }
+      }
+
+      function guessBotCard(guess) {
+        document.getElementById("guessModal").style.display = "none";
+        let lastCard = botHand[0];
+        let isCorrect = false;
+
+        if (guess === "action" && lastCard.type === "action") isCorrect = true;
+        if (guess === lastCard.color) isCorrect = true;
+
+        if (isCorrect) {
+          alert(
+            `太神了！猜中了！對手的牌真的是【${getTranslatedColor(guess)}】。\n對方被罰抽兩張牌！`,
+          );
+          drawCards(botHand, 2);
+        } else {
+          alert(
+            `猜錯了！對手的牌不是【${getTranslatedColor(guess)}】。\n你被罰抽兩張牌！`,
+          );
+          drawCards(playerHand, 2);
+        }
+
+        updateUI();
+        if (currentTurn !== "end") endTurn();
+      }
+
+      function checkWinState() {
+        if (playerHand.length === 0) {
+          setStatus("🎉 你贏了！");
+          currentTurn = "end";
+        } else if (botHand.length === 0) {
+          setStatus("💀 對手贏了！");
+          currentTurn = "end";
+        }
+      }
+
+      function setStatus(msg) {
+        document.getElementById("status").innerText = msg;
+      }
+
+      function showHistory() {
+        const historyList = document.getElementById("history-list");
+        historyList.innerHTML = "";
+
+        let reversedHistory = [...discardPile].reverse();
+
+        reversedHistory.forEach((card) => {
+          const cardEl = document.createElement("div");
+          cardEl.className = `card ${card.color}`;
+          cardEl.style.transform = "none";
+          cardEl.style.cursor = "default";
+          cardEl.innerText = card.type === "number" ? card.value : card.name;
+          historyList.appendChild(cardEl);
+        });
+
+        document.getElementById("historyModal").style.display = "flex";
+      }
+
+      function closeHistory() {
+        document.getElementById("historyModal").style.display = "none";
+      }
+
+      initDeck();
+      dealCards();
+    </script>
+  </body>
+</html>
