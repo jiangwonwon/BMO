@@ -61,12 +61,11 @@
 
       .hand {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         overflow-x: auto;
         padding: 10px 5px;
         width: 100%;
         align-items: center;
-        /* 修正BUG 2: 改為 flex-start，確保牌多時可以正常往右滑看到最左邊 */
         justify-content: flex-start;
         scrollbar-width: none;
         -ms-overflow-style: none;
@@ -75,7 +74,6 @@
       .hand::-webkit-scrollbar {
         display: none;
       }
-      /* 修正BUG 2: 利用虛擬元素，讓牌數量少時自動被推向中間置中 */
       .hand::before,
       .hand::after {
         content: "";
@@ -83,8 +81,8 @@
       }
 
       .card {
-        width: 56px;
-        height: 84px;
+        width: 52px;
+        height: 78px;
         border-radius: 6px;
         background-color: white;
         color: black;
@@ -149,8 +147,8 @@
       }
 
       .pile {
-        width: 56px;
-        height: 84px;
+        width: 52px;
+        height: 78px;
         border-radius: 6px;
         border: 2px dashed #ecf0f1;
         display: flex;
@@ -379,7 +377,7 @@
         <div class="modal-content">
           <h3>對方喊了BMO！請猜最後一張牌</h3>
           <p style="font-size: 12px; color: #ecf0f1">
-            猜對對方抽2張，猜錯你被罰抽2張！
+            猜對對方抽2張，猜錯你被罰抽2張！<br />(懲罰結束後，由被懲罰的人接著出牌)
           </p>
           <div class="modal-buttons">
             <button class="guess-btn red" onclick="guessBotCard('red')">
@@ -439,7 +437,7 @@
       let selectedCards = [];
 
       let pendingActionData = null;
-      let preActionColor = ""; // 修正BUG 1: 儲存出牌前的顏色狀態
+      let preActionColor = "";
 
       function initDeck() {
         deck = [];
@@ -606,9 +604,14 @@
           }
           container.appendChild(cardEl);
         });
+
         if (owner === "bot") {
           document.getElementById("bot-area").previousElementSibling.innerText =
             `對手手牌 (Bot) : ${hand.length} 張`;
+        } else if (owner === "player") {
+          document.getElementById(
+            "player-area",
+          ).previousElementSibling.innerText = `你的手牌 : ${hand.length} 張`;
         }
       }
 
@@ -692,10 +695,8 @@
         let { card: originalCard, role: originalRole } = pendingActionData;
         document.getElementById("counterPromptModal").style.display = "none";
 
-        // 修正BUG 1: 將顏色復原為出牌前的顏色
         currentColor = preActionColor;
 
-        // 將剛剛出的功能牌從桌面移走，準備塞回底下
         let playedActionCard = discardPile.pop();
 
         if (role === "bot") {
@@ -704,7 +705,6 @@
           );
           let counterCard = botHand.splice(counterIndex, 1)[0];
 
-          // 將抵銷牌與被抵銷的牌塞到牌堆底部，保持歷史紀錄但完美還原上一張牌狀態
           discardPile.unshift(playedActionCard);
           discardPile.unshift(counterCard);
 
@@ -769,9 +769,13 @@
             let newTop = discardPile[discardPile.length - 1];
             if (newTop.type === "number") currentColor = newTop.color;
 
+            // --- 加上顏色的顯示 ---
+            let colorName = getTranslatedColor(stolenCard.color);
             let cardName =
               stolenCard.type === "number" ? stolenCard.value : stolenCard.name;
-            alert(`${roleName} 的「偷牌」發動！拿走了「${cardName}」。`);
+            alert(
+              `${roleName} 的「偷牌」發動！拿走了「${colorName} ${cardName}」。`,
+            );
           } else {
             alert("牌堆只有一張牌，偷牌無效！");
           }
@@ -841,7 +845,6 @@
           return;
         }
 
-        // 修正BUG 1: 在確定合法出牌後，記錄此時的顏色供抵銷還原用
         preActionColor = currentColor;
 
         let indicesToRemove = selectedCards
@@ -906,17 +909,26 @@
 
         if (isCorrect) {
           alert(
-            `Bot 喊了：我猜你的牌是【${getTranslatedColor(botGuess)}】！\n😱 Bot 猜中了！你被罰抽兩張牌！`,
+            `Bot 喊了：我猜你的牌是【${getTranslatedColor(botGuess)}】！\n😱 Bot 猜中了！你被罰抽兩張牌，接著換你出牌！`,
           );
           drawCards(playerHand, 2);
+          updateUI();
+          if (currentTurn !== "end") {
+            currentTurn = "player";
+            setStatus("你的回合！");
+          }
         } else {
           alert(
-            `Bot 喊了：我猜你的牌是【${getTranslatedColor(botGuess)}】！\n😏 Bot 猜錯了！對手被罰抽兩張牌！`,
+            `Bot 喊了：我猜你的牌是【${getTranslatedColor(botGuess)}】！\n😏 Bot 猜錯了！對手被罰抽兩張牌，接著換對方出牌！`,
           );
           drawCards(botHand, 2);
+          updateUI();
+          if (currentTurn !== "end") {
+            currentTurn = "bot";
+            setStatus("對手思考中...");
+            setTimeout(botPlay, 1500);
+          }
         }
-        updateUI();
-        if (currentTurn !== "end") endTurn();
       }
 
       function drawCard(target) {
@@ -967,7 +979,6 @@
         if (playableIndex !== -1) {
           let playedCard = botHand.splice(playableIndex, 1)[0];
 
-          // 修正BUG 1: 在確定合法出牌後，記錄此時的顏色供抵銷還原用
           preActionColor = currentColor;
           discardPile.push(playedCard);
 
@@ -998,18 +1009,26 @@
 
         if (isCorrect) {
           alert(
-            `太神了！猜中了！對手的牌真的是【${getTranslatedColor(guess)}】。\n對方被罰抽兩張牌！`,
+            `太神了！猜中了！對手的牌真的是【${getTranslatedColor(guess)}】。\n對方被罰抽兩張牌，接著換對方出牌！`,
           );
           drawCards(botHand, 2);
+          updateUI();
+          if (currentTurn !== "end") {
+            currentTurn = "bot";
+            setStatus("對手思考中...");
+            setTimeout(botPlay, 1500);
+          }
         } else {
           alert(
-            `猜錯了！對手的牌不是【${getTranslatedColor(guess)}】。\n你被罰抽兩張牌！`,
+            `猜錯了！對手的牌不是【${getTranslatedColor(guess)}】。\n你被罰抽兩張牌，接著換你出牌！`,
           );
           drawCards(playerHand, 2);
+          updateUI();
+          if (currentTurn !== "end") {
+            currentTurn = "player";
+            setStatus("你的回合！");
+          }
         }
-
-        updateUI();
-        if (currentTurn !== "end") endTurn();
       }
 
       function checkWinState() {
