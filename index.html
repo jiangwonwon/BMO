@@ -808,6 +808,7 @@
         document.getElementById("counterPromptModal").style.display = "none";
 
         currentColor = preActionColor;
+
         let playedActionCard = discardPile.pop();
 
         if (role === "bot") {
@@ -918,7 +919,6 @@
             let isPair = playedCards.every((c) => c.value === c1.value);
             let isStraight = false;
             if (playedCards.length === 3) {
-              // 修正：限制順子只能是「遞增」，拔除遞減(倒順)判定
               let isAscending = true;
               for (let i = 0; i < playedCards.length - 1; i++) {
                 if (
@@ -1087,10 +1087,21 @@
         if (target === "player") {
           if (hasValidPlay(playerHand)) {
             alert("你有符合條件的牌可以出，不能抽牌喔！");
+
+            // 【修正BUG】：雖然禁止抽牌，但確保如果原本有選取的牌，清除它比較乾淨，以免後續操作混淆
+            selectedCards.forEach((s) => {
+              s.element.classList.remove("selected");
+              s.element.removeAttribute("data-order");
+            });
+            selectedCards = [];
+
             return;
           }
           let card = safePop();
           if (!card) return;
+
+          // 【修正BUG】：成功抽牌時，清空殘留的選取狀態
+          selectedCards = [];
 
           playerHand.push(card);
           bmoCalled = false;
@@ -1182,7 +1193,6 @@
         }
       }
 
-      // ===== 新增遊戲結束與重新開始相關 =====
       function checkWinState() {
         if (playerHand.length === 0) {
           setStatus("🎉 你贏了！");
