@@ -40,9 +40,10 @@
 
       h2 {
         font-size: 22px;
-        margin: 2px 0;
+        margin: 10px 0;
         margin-top: 8rem;
       }
+
       .label {
         font-size: 13px;
         color: #bdc3c7;
@@ -59,15 +60,14 @@
         min-height: 100px;
       }
 
-      /* ===== 完美置中與滑動修復區 ===== */
       .hand {
         display: flex;
-        gap: 6px;
+        gap: 8px;
         overflow-x: auto;
-        padding: 10px 0; /* 左右 padding 設為 0，交給偽元素處理 */
+        padding: 10px 5px;
         width: 100%;
         align-items: center;
-        /* 絕對不能用 justify-content: center，否則左側會卡死 */
+        justify-content: center;
         scrollbar-width: none;
         -ms-overflow-style: none;
         height: 100%;
@@ -176,7 +176,7 @@
         display: flex;
         gap: 12px;
         margin-top: auto;
-        margin-bottom: 5px;
+        margin-bottom: 20px;
       }
 
       button {
@@ -188,7 +188,6 @@
         border-radius: 6px;
         background-color: #34495e;
         color: white;
-        margin-bottom: 8rem;
       }
       button.bmo-btn {
         background-color: #e67e22;
@@ -300,6 +299,11 @@
         font-size: 10px;
         cursor: default;
       }
+
+      /* 遊戲說明專用樣式 */
+      .intro-text p {
+        margin: 8px 0;
+      }
     </style>
   </head>
   <body>
@@ -342,9 +346,89 @@
         <div class="hand" id="player-hand"></div>
       </div>
 
-      <div class="controls">
+      <div class="controls" style="margin-bottom: 8rem">
         <button class="bmo-btn" onclick="toggleBmo()">YA BMO!</button>
         <button class="play-btn" onclick="playSelectedCards()">出牌</button>
+      </div>
+
+      <div
+        id="introModal"
+        class="modal-overlay"
+        style="display: flex; z-index: 2000"
+      >
+        <div
+          class="modal-content"
+          style="
+            max-height: 85vh;
+            overflow-y: auto;
+            text-align: left;
+            padding: 20px;
+          "
+        >
+          <h3
+            style="
+              text-align: center;
+              color: #f1c40f;
+              margin-bottom: 10px;
+              font-size: 18px;
+            "
+          >
+            🎮 遊戲規則說明
+          </h3>
+          <div
+            class="intro-text"
+            style="font-size: 13px; color: #ecf0f1; line-height: 1.5"
+          >
+            <p>
+              <strong>📜 基本規則：</strong
+              ><br />每人6張牌，先出完者獲勝。出牌需與桌面牌同色、同數字。
+            </p>
+            <p>
+              <strong>✨ 特殊出法：</strong><br />
+              - <strong>對子：</strong>2張以上同數字。<br />
+              -
+              <strong>順子：</strong
+              >剛好3張連續遞增數字(如123、780)，<strong>不可倒順(如321)</strong>。第一張須符合桌面狀態。
+            </p>
+            <p>
+              <strong>🤖 BMO 規則：</strong><br />剩1張前必須喊「YA
+              BMO!」，否則罰抽2張。對手剩1張時可「猜牌」，猜中對方罰抽，猜錯自己罰抽。
+            </p>
+            <p>
+              <strong>⚔️ 功能牌：</strong><br />
+              - <strong>抵銷：</strong>對手出功能牌瞬間可發動攔截。<br />
+              - <strong>偷牌：</strong>偷走桌面剛出的牌。<br />
+              - <strong>尾牌限制：</strong>指定色、抽牌卡不能當最後一張出。
+            </p>
+          </div>
+          <div class="modal-buttons" style="margin-top: 15px">
+            <button class="play-btn" style="width: 100%" onclick="closeIntro()">
+              開始遊戲
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="gameOverModal"
+        class="modal-overlay"
+        style="display: none; z-index: 2000"
+      >
+        <div class="modal-content">
+          <h3
+            id="gameOverTitle"
+            style="font-size: 22px; margin-bottom: 20px"
+          ></h3>
+          <div class="modal-buttons">
+            <button
+              class="play-btn"
+              style="width: 100%"
+              onclick="restartGame()"
+            >
+              再來一局 🔄
+            </button>
+          </div>
+        </div>
       </div>
 
       <div id="colorPickerModal" class="modal-overlay" style="display: none">
@@ -725,7 +809,6 @@
         document.getElementById("counterPromptModal").style.display = "none";
 
         currentColor = preActionColor;
-
         let playedActionCard = discardPile.pop();
 
         if (role === "bot") {
@@ -836,18 +919,18 @@
             let isPair = playedCards.every((c) => c.value === c1.value);
             let isStraight = false;
             if (playedCards.length === 3) {
+              // 修正：限制順子只能是「遞增」，拔除遞減(倒順)判定
               let isAscending = true;
-              let isDescending = true;
               for (let i = 0; i < playedCards.length - 1; i++) {
-                if (playedCards[i + 1].value !== (playedCards[i].value + 1) % 9)
-                  isAscending = false;
                 if (
                   playedCards[i + 1].value !==
-                  (playedCards[i].value - 1 + 9) % 9
-                )
-                  isDescending = false;
+                  (playedCards[i].value + 1) % 9
+                ) {
+                  isAscending = false;
+                  break;
+                }
               }
-              isStraight = isAscending || isDescending;
+              isStraight = isAscending;
             }
             if ((isPair || isStraight) && checkCardMatchPile(c1)) {
               isValid = true;
@@ -864,7 +947,7 @@
         }
 
         if (!isValid) {
-          alert("出牌無效！請確認牌型規則。");
+          alert("出牌無效！請確認牌型規則（順子只能遞增，不可倒順）。");
           selectedCards.forEach((s) => {
             s.element.classList.remove("selected");
             s.element.removeAttribute("data-order");
@@ -1100,14 +1183,38 @@
         }
       }
 
+      // ===== 新增遊戲結束與重新開始相關 =====
       function checkWinState() {
         if (playerHand.length === 0) {
           setStatus("🎉 你贏了！");
           currentTurn = "end";
+          showGameOver("🎉 恭喜你贏了！");
         } else if (botHand.length === 0) {
           setStatus("💀 對手贏了！");
           currentTurn = "end";
+          showGameOver("💀 遺憾，對手贏了！");
         }
+      }
+
+      function showGameOver(msg) {
+        document.getElementById("gameOverTitle").innerText = msg;
+        document.getElementById("gameOverModal").style.display = "flex";
+      }
+
+      function restartGame() {
+        document.getElementById("gameOverModal").style.display = "none";
+        deck = [];
+        discardPile = [];
+        playerHand = [];
+        botHand = [];
+        currentColor = "";
+        currentTurn = "player";
+        bmoCalled = false;
+        selectedCards = [];
+        pendingActionData = null;
+        preActionColor = "";
+        initDeck();
+        dealCards();
       }
 
       function setStatus(msg) {
@@ -1134,6 +1241,10 @@
 
       function closeHistory() {
         document.getElementById("historyModal").style.display = "none";
+      }
+
+      function closeIntro() {
+        document.getElementById("introModal").style.display = "none";
       }
 
       document.addEventListener(
