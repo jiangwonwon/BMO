@@ -66,13 +66,20 @@
         padding: 10px 5px;
         width: 100%;
         align-items: center;
-        justify-content: center;
+        /* 修正BUG 2: 改為 flex-start，確保牌多時可以正常往右滑看到最左邊 */
+        justify-content: flex-start;
         scrollbar-width: none;
         -ms-overflow-style: none;
         height: 100%;
       }
       .hand::-webkit-scrollbar {
         display: none;
+      }
+      /* 修正BUG 2: 利用虛擬元素，讓牌數量少時自動被推向中間置中 */
+      .hand::before,
+      .hand::after {
+        content: "";
+        margin: auto;
       }
 
       .card {
@@ -432,6 +439,7 @@
       let selectedCards = [];
 
       let pendingActionData = null;
+      let preActionColor = ""; // 修正BUG 1: 儲存出牌前的顏色狀態
 
       function initDeck() {
         deck = [];
@@ -684,15 +692,24 @@
         let { card: originalCard, role: originalRole } = pendingActionData;
         document.getElementById("counterPromptModal").style.display = "none";
 
+        // 修正BUG 1: 將顏色復原為出牌前的顏色
+        currentColor = preActionColor;
+
+        // 將剛剛出的功能牌從桌面移走，準備塞回底下
+        let playedActionCard = discardPile.pop();
+
         if (role === "bot") {
           let counterIndex = botHand.findIndex(
             (c) => c.actionType === "counter",
           );
           let counterCard = botHand.splice(counterIndex, 1)[0];
-          discardPile.push(counterCard);
+
+          // 將抵銷牌與被抵銷的牌塞到牌堆底部，保持歷史紀錄但完美還原上一張牌狀態
+          discardPile.unshift(playedActionCard);
+          discardPile.unshift(counterCard);
 
           alert(
-            `⚠️ Bot 發動了「抵銷」！\n你的「${originalCard.name}」被完全抵銷！\n你被迫抽 1 張牌，並且回合回到你身上。`,
+            `⚠️ Bot 發動了「抵銷」！\n你的「${originalCard.name}」被完全抵銷，狀態回到上一張牌！\n你被迫抽 1 張牌，並且回合回到你身上。`,
           );
           drawCards(playerHand, 1);
           currentTurn = "player";
@@ -702,10 +719,12 @@
             (c) => c.actionType === "counter",
           );
           let counterCard = playerHand.splice(counterIndex, 1)[0];
-          discardPile.push(counterCard);
+
+          discardPile.unshift(playedActionCard);
+          discardPile.unshift(counterCard);
 
           alert(
-            `⚠️ 你發動了「抵銷」！\n對手的「${originalCard.name}」被完全抵銷！\n對手被迫抽 1 張牌，並且回合回到對手身上。`,
+            `⚠️ 你發動了「抵銷」！\n對手的「${originalCard.name}」被完全抵銷，狀態回到上一張牌！\n對手被迫抽 1 張牌，並且回合回到對手身上。`,
           );
           drawCards(botHand, 1);
           currentTurn = "bot";
@@ -735,7 +754,6 @@
           drawCards(opponentHand, 2);
           alert(`${roleName} 的「指定色+抽2」發動！`);
         } else if (card.actionType === "skip") {
-          // 修正：拔除跳過對手的機制，打出PASS就是直接換對方
           alert(`${roleName} 發動了「PASS」！直接換對方出牌。`);
         } else if (card.actionType === "bothDraw1") {
           drawCards(myHand, 1);
@@ -822,6 +840,9 @@
           selectedCards = [];
           return;
         }
+
+        // 修正BUG 1: 在確定合法出牌後，記錄此時的顏色供抵銷還原用
+        preActionColor = currentColor;
 
         let indicesToRemove = selectedCards
           .map((s) => s.index)
@@ -945,6 +966,9 @@
 
         if (playableIndex !== -1) {
           let playedCard = botHand.splice(playableIndex, 1)[0];
+
+          // 修正BUG 1: 在確定合法出牌後，記錄此時的顏色供抵銷還原用
+          preActionColor = currentColor;
           discardPile.push(playedCard);
 
           if (playedCard.type === "action") {
