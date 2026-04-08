@@ -74,20 +74,17 @@
       .hand::-webkit-scrollbar {
         display: none;
       }
-      /* 前後加入虛擬邊界，確保滑到底時不會貼著螢幕邊緣 */
       .hand::before,
       .hand::after {
         content: "";
         flex: 0 0 5px;
       }
-      /* 第一張牌和最後一張牌使用 margin: auto，牌少時置中，牌多時正常靠左 */
       .hand .card:first-of-type {
         margin-left: auto;
       }
       .hand .card:last-of-type {
         margin-right: auto;
       }
-      /* ============================= */
 
       .card {
         width: 52px;
@@ -176,6 +173,9 @@
         gap: 12px;
         margin-top: auto;
         margin-bottom: 2rem;
+        width: 100%;
+        padding: 0 20px;
+        justify-content: center;
       }
 
       button {
@@ -299,7 +299,6 @@
         cursor: default;
       }
 
-      /* 遊戲說明專用樣式 */
       .intro-text p {
         margin: 8px 0;
       }
@@ -345,7 +344,7 @@
         <div class="hand" id="player-hand"></div>
       </div>
 
-      <div class="controls">
+      <div class="controls" id="main-controls">
         <button class="bmo-btn" onclick="toggleBmo()">YA BMO!</button>
         <button class="play-btn" onclick="playSelectedCards()">出牌</button>
       </div>
@@ -395,10 +394,7 @@
             </p>
             <p>
               <strong>⚔️ 功能牌：</strong><br />
-              - <strong>抵銷：</strong>對手出功能牌瞬間可發動攔截。<br /><span
-                style="color: #f39c12"
-                >若雙方連續發動抵銷，將會「互相抵銷」不罰抽牌，且原功能正常發動！</span
-              ><br />
+              - <strong>抵銷：</strong>對手出功能牌瞬間可發動攔截。<br />
               - <strong>偷牌：</strong>偷走桌面剛出的牌。<br />
               - <strong>尾牌限制：</strong>指定色、抽牌卡不能當最後一張出。
             </p>
@@ -425,13 +421,23 @@
             id="gameOverTitle"
             style="font-size: 22px; margin-bottom: 20px"
           ></h3>
-          <div class="modal-buttons">
+          <div
+            class="modal-buttons"
+            style="flex-direction: column; width: 100%"
+          >
             <button
               class="play-btn"
-              style="width: 100%; margin-bottom: 0"
+              style="width: 100%; margin-bottom: 8px"
               onclick="restartGame()"
             >
               再來一局 🔄
+            </button>
+            <button
+              class="bmo-btn"
+              style="width: 100%; margin-bottom: 0"
+              onclick="hideGameOverModal()"
+            >
+              查看桌面 👀
             </button>
           </div>
         </div>
@@ -503,7 +509,6 @@
             id="guessModalColorText"
             style="font-size: 14px; margin: 8px 0"
           ></p>
-
           <div style="text-align: left; margin-top: 10px">
             <span style="font-size: 12px; color: #bdc3c7"
               >近期歷史出牌 (左側為最新)：</span
@@ -518,7 +523,6 @@
               "
             ></div>
           </div>
-
           <p style="font-size: 12px; color: #ecf0f1; margin-top: 8px">
             猜對對方抽2張，猜錯你被罰抽2張！<br />(懲罰結束後，由被懲罰的人接著出牌)
           </p>
@@ -601,10 +605,8 @@
 
       let pendingActionData = null;
       let preActionColor = "";
-
-      // 連鎖系統狀態變數
-      let counterChain = 0; // 記錄目前有幾張抵銷牌被連續打出
-      let currentlyAskingRole = ""; // 現在輪到誰決定要不要發動抵銷
+      let counterChain = 0;
+      let currentlyAskingRole = "";
 
       function initDeck() {
         deck = [];
@@ -805,12 +807,9 @@
         }
       }
 
-      // ==========================================
-      // 連鎖系統 (Chain System) 核心邏輯
-      // ==========================================
       function handleActionCard(card, role) {
         pendingActionData = { card, role };
-        counterChain = 0; // 重置連鎖次數
+        counterChain = 0;
 
         let needsColor =
           card.actionType === "wild" || card.actionType === "wildDraw2";
@@ -835,7 +834,6 @@
           updateUI();
         }
 
-        // 開始反制循環，首先詢問「非出牌者」
         currentlyAskingRole = role === "player" ? "bot" : "player";
         askForCounter();
       }
@@ -848,7 +846,6 @@
         );
 
         if (counterIndex !== -1) {
-          // 手上有抵銷可以發動
           if (currentlyAskingRole === "bot") {
             setStatus("對手思考是否反制...");
             setTimeout(() => executeCounter(), 1000);
@@ -865,7 +862,6 @@
             document.getElementById("counterPromptText").innerText = promptMsg;
           }
         } else {
-          // 手上沒抵銷，無法反制
           setStatus(`等待結算...`);
           setTimeout(() => resolveChain(), 800);
         }
@@ -874,7 +870,6 @@
       function executeCounter() {
         document.getElementById("counterPromptModal").style.display = "none";
 
-        // 將抵銷牌打入桌面
         let activeHand =
           currentlyAskingRole === "player" ? playerHand : botHand;
         let counterIndex = activeHand.findIndex(
@@ -883,13 +878,12 @@
         let counterCard = activeHand.splice(counterIndex, 1)[0];
         discardPile.push(counterCard);
 
-        counterChain++; // 增加連鎖次數
+        counterChain++;
         updateUI();
 
         let roleName = currentlyAskingRole === "player" ? "你" : "對手";
         alert(`⚠️ ${roleName} 發動了「抵銷」！`);
 
-        // 發動完後，換問另一個人要不要跟著連鎖抵銷
         currentlyAskingRole =
           currentlyAskingRole === "player" ? "bot" : "player";
         setTimeout(askForCounter, 500);
@@ -903,15 +897,11 @@
       function resolveChain() {
         let { card: originalCard, role: originalRole } = pendingActionData;
 
-        // 判斷連鎖次數
         if (counterChain === 0) {
-          // 沒有人發動抵銷，正常結算原始功能牌
           resolveAction(originalCard, originalRole);
         } else if (counterChain % 2 === 1) {
-          // 抵銷被成功發動 (單數次)，原功能無效
-          currentColor = preActionColor; // 復原顏色
+          currentColor = preActionColor;
 
-          // 整理桌面：把最早出的功能牌和所有抵銷牌都塞回最下面
           let chainCardsToBury = [];
           for (let i = 0; i <= counterChain; i++) {
             chainCardsToBury.push(discardPile.pop());
@@ -934,13 +924,10 @@
           updateUI();
           checkWinState();
         } else if (counterChain % 2 === 0) {
-          // 互相抵銷 (雙數次，例如2次：A打出->B抵銷->A抵銷)
-          // 雙方抵銷牌消耗掉，沒有人被罰抽牌，原始功能牌復活！
           alert(
             `⚔️ 互相抵銷！\n雙方的抵銷魔法互相碰撞消散，沒人需要罰抽牌！\n原先的「${originalCard.name}」將正常發動！`,
           );
 
-          // 把所有抵銷牌塞到底下，但保留原始功能牌在最上面
           let counterCardsToBury = [];
           for (let i = 0; i < counterChain; i++) {
             counterCardsToBury.push(discardPile.pop());
@@ -948,8 +935,6 @@
           counterCardsToBury.reverse().forEach((c) => discardPile.unshift(c));
 
           updateUI();
-
-          // 結算原始功能
           resolveAction(originalCard, originalRole);
         }
       }
@@ -1187,20 +1172,17 @@
         if (target === "player") {
           if (hasValidPlay(playerHand)) {
             alert("你有符合條件的牌可以出，不能抽牌喔！");
-
             selectedCards.forEach((s) => {
               s.element.classList.remove("selected");
               s.element.removeAttribute("data-order");
             });
             selectedCards = [];
-
             return;
           }
           let card = safePop();
           if (!card) return;
 
           selectedCards = [];
-
           playerHand.push(card);
           bmoCalled = false;
           updateUI();
@@ -1291,16 +1273,16 @@
         }
       }
 
-      // ===== 新增遊戲結束與重新開始相關 =====
+      // ===== 優化：結算時延遲彈出視窗 =====
       function checkWinState() {
         if (playerHand.length === 0) {
           setStatus("🎉 你贏了！");
           currentTurn = "end";
-          showGameOver("🎉 恭喜你贏了！");
+          setTimeout(() => showGameOver("🎉 恭喜你贏了！"), 1500); // 延遲 1.5 秒
         } else if (botHand.length === 0) {
           setStatus("💀 對手贏了！");
           currentTurn = "end";
-          showGameOver("💀 遺憾，對手贏了！");
+          setTimeout(() => showGameOver("💀 遺憾，對手贏了！"), 1500); // 延遲 1.5 秒
         }
       }
 
@@ -1309,8 +1291,20 @@
         document.getElementById("gameOverModal").style.display = "flex";
       }
 
+      // ===== 新增：隱藏結算視窗並更換按鈕 =====
+      function hideGameOverModal() {
+        document.getElementById("gameOverModal").style.display = "none";
+        document.getElementById("main-controls").innerHTML =
+          '<button class="play-btn" style="width: 100%;" onclick="restartGame()">再來一局 🔄</button>';
+      }
+
       function restartGame() {
         document.getElementById("gameOverModal").style.display = "none";
+        // 恢復控制列按鈕
+        document.getElementById("main-controls").innerHTML = `
+          <button class="bmo-btn" onclick="toggleBmo()">YA BMO!</button>
+          <button class="play-btn" onclick="playSelectedCards()">出牌</button>
+        `;
         deck = [];
         discardPile = [];
         playerHand = [];
