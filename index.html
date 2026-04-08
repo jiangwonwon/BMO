@@ -395,13 +395,20 @@
             </p>
             <p>
               <strong>⚔️ 功能牌：</strong><br />
-              - <strong>抵銷：</strong>對手出功能牌瞬間可發動攔截。<br />
+              - <strong>抵銷：</strong>對手出功能牌瞬間可發動攔截。<br /><span
+                style="color: #f39c12"
+                >若雙方連續發動抵銷，將會「互相抵銷」不罰抽牌，且原功能正常發動！</span
+              ><br />
               - <strong>偷牌：</strong>偷走桌面剛出的牌。<br />
               - <strong>尾牌限制：</strong>指定色、抽牌卡不能當最後一張出。
             </p>
           </div>
           <div class="modal-buttons" style="margin-top: 15px">
-            <button class="play-btn" style="width: 100%" onclick="closeIntro()">
+            <button
+              class="play-btn"
+              style="width: 100%; margin-bottom: 0"
+              onclick="closeIntro()"
+            >
               開始遊戲
             </button>
           </div>
@@ -421,7 +428,7 @@
           <div class="modal-buttons">
             <button
               class="play-btn"
-              style="width: 100%"
+              style="width: 100%; margin-bottom: 0"
               onclick="restartGame()"
             >
               再來一局 🔄
@@ -434,16 +441,32 @@
         <div class="modal-content">
           <h3>請選擇指定的顏色</h3>
           <div class="modal-buttons">
-            <button class="color-btn red" onclick="setColor('red')">
+            <button
+              class="color-btn red"
+              style="margin-bottom: 0"
+              onclick="setColor('red')"
+            >
               紅色
             </button>
-            <button class="color-btn blue" onclick="setColor('blue')">
+            <button
+              class="color-btn blue"
+              style="margin-bottom: 0"
+              onclick="setColor('blue')"
+            >
               藍色
             </button>
-            <button class="color-btn green" onclick="setColor('green')">
+            <button
+              class="color-btn green"
+              style="margin-bottom: 0"
+              onclick="setColor('green')"
+            >
               綠色
             </button>
-            <button class="color-btn yellow" onclick="setColor('yellow')">
+            <button
+              class="color-btn yellow"
+              style="margin-bottom: 0"
+              onclick="setColor('yellow')"
+            >
               黃色
             </button>
           </div>
@@ -455,10 +478,18 @@
           <h3 style="color: #e74c3c">⚠️ 發動反制！</h3>
           <p id="counterPromptText" style="font-size: 14px; margin: 10px 0"></p>
           <div class="modal-buttons">
-            <button class="danger-btn" onclick="executeCounter('player')">
+            <button
+              class="danger-btn"
+              style="margin-bottom: 0"
+              onclick="executeCounter()"
+            >
               發動抵銷
             </button>
-            <button class="bmo-btn" onclick="declineCounter()">
+            <button
+              class="bmo-btn"
+              style="margin-bottom: 0"
+              onclick="declineCounter()"
+            >
               保留不發動
             </button>
           </div>
@@ -492,19 +523,39 @@
             猜對對方抽2張，猜錯你被罰抽2張！<br />(懲罰結束後，由被懲罰的人接著出牌)
           </p>
           <div class="modal-buttons">
-            <button class="guess-btn red" onclick="guessBotCard('red')">
+            <button
+              class="guess-btn red"
+              style="margin-bottom: 0"
+              onclick="guessBotCard('red')"
+            >
               紅色
             </button>
-            <button class="guess-btn blue" onclick="guessBotCard('blue')">
+            <button
+              class="guess-btn blue"
+              style="margin-bottom: 0"
+              onclick="guessBotCard('blue')"
+            >
               藍色
             </button>
-            <button class="guess-btn green" onclick="guessBotCard('green')">
+            <button
+              class="guess-btn green"
+              style="margin-bottom: 0"
+              onclick="guessBotCard('green')"
+            >
               綠色
             </button>
-            <button class="guess-btn yellow" onclick="guessBotCard('yellow')">
+            <button
+              class="guess-btn yellow"
+              style="margin-bottom: 0"
+              onclick="guessBotCard('yellow')"
+            >
               黃色
             </button>
-            <button class="guess-btn action" onclick="guessBotCard('action')">
+            <button
+              class="guess-btn action"
+              style="margin-bottom: 0"
+              onclick="guessBotCard('action')"
+            >
               功能牌
             </button>
           </div>
@@ -528,7 +579,7 @@
           <div id="history-list" class="history-list"></div>
           <button
             class="bmo-btn"
-            style="margin-top: 15px; align-self: center"
+            style="margin-top: 15px; align-self: center; margin-bottom: 0"
             onclick="closeHistory()"
           >
             關閉
@@ -550,6 +601,10 @@
 
       let pendingActionData = null;
       let preActionColor = "";
+
+      // 連鎖系統狀態變數
+      let counterChain = 0; // 記錄目前有幾張抵銷牌被連續打出
+      let currentlyAskingRole = ""; // 現在輪到誰決定要不要發動抵銷
 
       function initDeck() {
         deck = [];
@@ -750,8 +805,13 @@
         }
       }
 
+      // ==========================================
+      // 連鎖系統 (Chain System) 核心邏輯
+      // ==========================================
       function handleActionCard(card, role) {
         pendingActionData = { card, role };
+        counterChain = 0; // 重置連鎖次數
+
         let needsColor =
           card.actionType === "wild" || card.actionType === "wildDraw2";
 
@@ -775,86 +835,126 @@
           updateUI();
         }
 
-        triggerCounterCheck();
+        // 開始反制循環，首先詢問「非出牌者」
+        currentlyAskingRole = role === "player" ? "bot" : "player";
+        askForCounter();
       }
 
-      function triggerCounterCheck() {
-        let { card, role } = pendingActionData;
-        let opponentRole = role === "player" ? "bot" : "player";
-        let opponentHand = opponentRole === "bot" ? botHand : playerHand;
-
-        let counterIndex = opponentHand.findIndex(
+      function askForCounter() {
+        let askingHand =
+          currentlyAskingRole === "player" ? playerHand : botHand;
+        let counterIndex = askingHand.findIndex(
           (c) => c.actionType === "counter",
         );
 
         if (counterIndex !== -1) {
-          if (opponentRole === "bot") {
+          // 手上有抵銷可以發動
+          if (currentlyAskingRole === "bot") {
             setStatus("對手思考是否反制...");
-            setTimeout(() => executeCounter("bot"), 1000);
+            setTimeout(() => executeCounter(), 1000);
           } else {
             document.getElementById("counterPromptModal").style.display =
               "flex";
-            document.getElementById("counterPromptText").innerText =
-              `對手打出了「${card.name}」！\n是否使用手牌中的「抵銷」攔截？`;
+
+            let promptMsg = "";
+            if (counterChain === 0) {
+              promptMsg = `對手打出了「${pendingActionData.card.name}」！\n是否使用手牌中的「抵銷」攔截？`;
+            } else {
+              promptMsg = `對手用「抵銷」反制了你的功能！\n你手上有「抵銷」，是否發動來【互相抵銷】？`;
+            }
+            document.getElementById("counterPromptText").innerText = promptMsg;
           }
         } else {
+          // 手上沒抵銷，無法反制
           setStatus(`等待結算...`);
-          setTimeout(() => resolveAction(), 800);
+          setTimeout(() => resolveChain(), 800);
         }
       }
 
-      function executeCounter(role) {
-        let { card: originalCard, role: originalRole } = pendingActionData;
+      function executeCounter() {
         document.getElementById("counterPromptModal").style.display = "none";
 
-        currentColor = preActionColor;
+        // 將抵銷牌打入桌面
+        let activeHand =
+          currentlyAskingRole === "player" ? playerHand : botHand;
+        let counterIndex = activeHand.findIndex(
+          (c) => c.actionType === "counter",
+        );
+        let counterCard = activeHand.splice(counterIndex, 1)[0];
+        discardPile.push(counterCard);
 
-        let playedActionCard = discardPile.pop();
-
-        if (role === "bot") {
-          let counterIndex = botHand.findIndex(
-            (c) => c.actionType === "counter",
-          );
-          let counterCard = botHand.splice(counterIndex, 1)[0];
-
-          discardPile.unshift(playedActionCard);
-          discardPile.unshift(counterCard);
-
-          alert(
-            `⚠️ Bot 發動了「抵銷」！\n你的「${originalCard.name}」被完全抵銷，狀態回到上一張牌！\n你被迫抽 1 張牌，並且回合回到你身上。`,
-          );
-          drawCards(playerHand, 1);
-          currentTurn = "player";
-          setStatus("你的回合！");
-        } else {
-          let counterIndex = playerHand.findIndex(
-            (c) => c.actionType === "counter",
-          );
-          let counterCard = playerHand.splice(counterIndex, 1)[0];
-
-          discardPile.unshift(playedActionCard);
-          discardPile.unshift(counterCard);
-
-          alert(
-            `⚠️ 你發動了「抵銷」！\n對手的「${originalCard.name}」被完全抵銷，狀態回到上一張牌！\n對手被迫抽 1 張牌，並且回合回到對手身上。`,
-          );
-          drawCards(botHand, 1);
-          currentTurn = "bot";
-          setTimeout(botPlay, 1500);
-        }
-
-        pendingActionData = null;
+        counterChain++; // 增加連鎖次數
         updateUI();
-        checkWinState();
+
+        let roleName = currentlyAskingRole === "player" ? "你" : "對手";
+        alert(`⚠️ ${roleName} 發動了「抵銷」！`);
+
+        // 發動完後，換問另一個人要不要跟著連鎖抵銷
+        currentlyAskingRole =
+          currentlyAskingRole === "player" ? "bot" : "player";
+        setTimeout(askForCounter, 500);
       }
 
       function declineCounter() {
         document.getElementById("counterPromptModal").style.display = "none";
-        resolveAction();
+        resolveChain();
       }
 
-      function resolveAction() {
-        let { card, role } = pendingActionData;
+      function resolveChain() {
+        let { card: originalCard, role: originalRole } = pendingActionData;
+
+        // 判斷連鎖次數
+        if (counterChain === 0) {
+          // 沒有人發動抵銷，正常結算原始功能牌
+          resolveAction(originalCard, originalRole);
+        } else if (counterChain % 2 === 1) {
+          // 抵銷被成功發動 (單數次)，原功能無效
+          currentColor = preActionColor; // 復原顏色
+
+          // 整理桌面：把最早出的功能牌和所有抵銷牌都塞回最下面
+          let chainCardsToBury = [];
+          for (let i = 0; i <= counterChain; i++) {
+            chainCardsToBury.push(discardPile.pop());
+          }
+          chainCardsToBury.reverse().forEach((c) => discardPile.unshift(c));
+
+          let victimName = originalRole === "player" ? "你" : "對手";
+          let victimHand = originalRole === "player" ? playerHand : botHand;
+
+          alert(
+            `🛡️ 反制成功！\n${victimName}的「${originalCard.name}」被抵銷，狀態回到上一張牌！\n${victimName}被迫抽 1 張牌，並且回合回到${victimName}身上。`,
+          );
+          drawCards(victimHand, 1);
+
+          currentTurn = originalRole;
+          if (currentTurn === "bot") setTimeout(botPlay, 1500);
+          else setStatus("你的回合！");
+
+          pendingActionData = null;
+          updateUI();
+          checkWinState();
+        } else if (counterChain % 2 === 0) {
+          // 互相抵銷 (雙數次，例如2次：A打出->B抵銷->A抵銷)
+          // 雙方抵銷牌消耗掉，沒有人被罰抽牌，原始功能牌復活！
+          alert(
+            `⚔️ 互相抵銷！\n雙方的抵銷魔法互相碰撞消散，沒人需要罰抽牌！\n原先的「${originalCard.name}」將正常發動！`,
+          );
+
+          // 把所有抵銷牌塞到底下，但保留原始功能牌在最上面
+          let counterCardsToBury = [];
+          for (let i = 0; i < counterChain; i++) {
+            counterCardsToBury.push(discardPile.pop());
+          }
+          counterCardsToBury.reverse().forEach((c) => discardPile.unshift(c));
+
+          updateUI();
+
+          // 結算原始功能
+          resolveAction(originalCard, originalRole);
+        }
+      }
+
+      function resolveAction(card, role) {
         let opponentHand = role === "player" ? botHand : playerHand;
         let myHand = role === "player" ? playerHand : botHand;
         let roleName = role === "player" ? "你" : "對手";
@@ -982,7 +1082,7 @@
         updateUI();
 
         if (pendingActionData) {
-          triggerCounterCheck();
+          askForCounter();
         }
       }
 
@@ -1088,7 +1188,6 @@
           if (hasValidPlay(playerHand)) {
             alert("你有符合條件的牌可以出，不能抽牌喔！");
 
-            // 【修正BUG】：雖然禁止抽牌，但確保如果原本有選取的牌，清除它比較乾淨，以免後續操作混淆
             selectedCards.forEach((s) => {
               s.element.classList.remove("selected");
               s.element.removeAttribute("data-order");
@@ -1100,7 +1199,6 @@
           let card = safePop();
           if (!card) return;
 
-          // 【修正BUG】：成功抽牌時，清空殘留的選取狀態
           selectedCards = [];
 
           playerHand.push(card);
@@ -1193,6 +1291,7 @@
         }
       }
 
+      // ===== 新增遊戲結束與重新開始相關 =====
       function checkWinState() {
         if (playerHand.length === 0) {
           setStatus("🎉 你贏了！");
@@ -1222,6 +1321,8 @@
         selectedCards = [];
         pendingActionData = null;
         preActionColor = "";
+        counterChain = 0;
+        currentlyAskingRole = "";
         initDeck();
         dealCards();
       }
