@@ -169,7 +169,6 @@
         font-size: 12px;
       }
 
-      /* === 放大一點點的迷你卡牌 === */
       .mini-board-card {
         width: 30px;
         height: 45px;
@@ -723,6 +722,10 @@
 
       let lastBotActionMsg = "";
 
+      // === 數字保留功能變數 ===
+      let currentNumber = "";
+      let preActionNumber = "";
+
       function initDeck() {
         deck = [];
         colors.forEach((color) => {
@@ -792,6 +795,7 @@
         }
         discardPile.push(firstCard);
         currentColor = firstCard.color;
+        currentNumber = firstCard.value; // 記錄初始數字
 
         updateUI();
         setStatus("你的回合，請選擇卡牌。");
@@ -812,12 +816,15 @@
         if (card.actionType === "counter") return false;
         if (card.color === "action") return true;
         if (card.color === currentColor) return true;
+
+        // 修正：使用 currentNumber 檢查，不受功能牌蓋掉數字影響
         if (
           card.type === "number" &&
-          topCard.type === "number" &&
-          card.value === topCard.value
+          currentNumber !== "" &&
+          card.value === currentNumber
         )
           return true;
+
         if (
           card.type === "action" &&
           topCard.type === "action" &&
@@ -844,7 +851,9 @@
 
         document.getElementById("color-val").innerText =
           getTranslatedColor(currentColor);
-        let valText = topCard.type === "number" ? topCard.value : "無";
+
+        // 修正：不受功能牌影響，持續顯示有效數字
+        let valText = currentNumber !== "" ? currentNumber : "無";
         document.getElementById("number-val").innerText = valText;
 
         const colorMap = {
@@ -1019,12 +1028,11 @@
           setStatus(lastBotActionMsg);
         }
 
-        // === 保留：雙方發動抵銷時的 Alert ===
         alert(`⚠️ ${roleName} 發動了「抵銷」！`);
 
         currentlyAskingRole =
           currentlyAskingRole === "player" ? "bot" : "player";
-        setTimeout(askForCounter, 500);
+        setTimeout(askForCounter, 1000);
       }
 
       function declineCounter() {
@@ -1039,6 +1047,7 @@
           resolveAction(originalCard, originalRole);
         } else if (counterChain % 2 === 1) {
           currentColor = preActionColor;
+          currentNumber = preActionNumber; // 恢復數字
 
           let chainCardsToBury = [];
           for (let i = 0; i <= counterChain; i++) {
@@ -1049,7 +1058,6 @@
           let victimName = originalRole === "player" ? "你" : "對手";
           let victimHand = originalRole === "player" ? playerHand : botHand;
 
-          // === 保留：反制成功的 Alert ===
           alert(
             `🛡️ 反制成功！\n${victimName}的「${originalCard.name}」被抵銷，狀態回到上一張牌！\n${victimName}被迫抽 1 張牌，並且回合回到${victimName}身上。`,
           );
@@ -1072,7 +1080,6 @@
           updateUI();
           checkWinState();
         } else if (counterChain % 2 === 0) {
-          // === 保留：互相抵銷的 Alert ===
           alert(
             `⚔️ 互相抵銷！\n雙方的抵銷魔法互相碰撞消散，沒人需要罰抽牌！\n原先的「${originalCard.name}」將正常發動！`,
           );
@@ -1131,7 +1138,12 @@
             discardPile.unshift(playedSteal);
 
             let newTop = discardPile[discardPile.length - 1];
-            if (newTop.type === "number") currentColor = newTop.color;
+            if (newTop.type === "number") {
+              currentColor = newTop.color;
+              currentNumber = newTop.value; // 更新數字
+            } else if (newTop.color !== "action") {
+              currentColor = newTop.color;
+            }
 
             let colorName = getTranslatedColor(stolenCard.color);
             let cardName =
@@ -1144,7 +1156,7 @@
             if (role === "player")
               actionAlertMsg = `你使用「偷牌」，拿走了：【${fullCardName}】！`;
             else
-              botStatusMsg = `對手使用「拿最上層牌」，拿了：【${fullCardName}】`;
+              botStatusMsg = `對手使用「拿最上層牌」，拿了：【${fullCardName}】！`;
           } else {
             if (role === "player")
               actionAlertMsg = `牌堆只有一張牌，你的「偷牌」無效！`;
@@ -1158,12 +1170,10 @@
           else botStatusMsg = `對手使用「指定顏色」，換成了【${cName}】`;
         }
 
-        // === 保留：玩家出牌的 Alert ===
         if (role === "player" && actionAlertMsg) {
           alert(actionAlertMsg);
         }
 
-        // === 對手的動作只記錄到 Status ===
         if (role === "bot" && botStatusMsg) {
           lastBotActionMsg = botStatusMsg;
         }
@@ -1232,6 +1242,7 @@
         }
 
         preActionColor = currentColor;
+        preActionNumber = currentNumber; // 記錄動作前數字
 
         let indicesToRemove = selectedCards
           .map((s) => s.index)
@@ -1241,11 +1252,13 @@
 
         let finalCard = playedCards[playedCards.length - 1];
         selectedCards = [];
+        lastBotActionMsg = "";
 
         if (finalCard.type === "action") {
           handleActionCard(finalCard, "player");
         } else {
           currentColor = finalCard.color;
+          currentNumber = finalCard.value; // 更新新數字
           updateUI();
           checkWinState();
           if (currentTurn !== "end") finalizeTurn("player");
@@ -1366,13 +1379,11 @@
         if (target === "player") {
           if (hasValidPlay(playerHand)) {
             alert("你有符合條件的牌可以出，不能抽牌喔！");
-
             selectedCards.forEach((s) => {
               s.element.classList.remove("selected");
               s.element.removeAttribute("data-order");
             });
             selectedCards = [];
-
             return;
           }
           let card = safePop();
@@ -1381,6 +1392,7 @@
           selectedCards = [];
           playerHand.push(card);
           bmoCalled = false;
+          lastBotActionMsg = "";
           updateUI();
           endTurn();
         }
@@ -1417,24 +1429,21 @@
         if (playableIndex !== -1) {
           let playedCard = botHand.splice(playableIndex, 1)[0];
 
-          let cardName =
-            playedCard.type === "number" ? playedCard.value : playedCard.name;
-          let colorName = getTranslatedColor(playedCard.color);
-
-          if (playedCard.color !== "action") {
-            lastBotActionMsg = `對手出了：【${colorName} ${cardName}】`;
-            setStatus(lastBotActionMsg);
-          } else {
-            setStatus(`對手出了：【${cardName}】`);
-          }
-
           preActionColor = currentColor;
+          preActionNumber = currentNumber; // 記錄動作前數字
           discardPile.push(playedCard);
 
           if (playedCard.type === "action") {
             handleActionCard(playedCard, "bot");
           } else {
+            let cardName =
+              playedCard.type === "number" ? playedCard.value : playedCard.name;
+            let colorName = getTranslatedColor(playedCard.color);
+            lastBotActionMsg = `對手出了：【${colorName} ${cardName}】`;
+            setStatus(lastBotActionMsg);
+
             currentColor = playedCard.color;
+            currentNumber = playedCard.value; // 更新新數字
             updateUI();
             checkWinState();
             if (currentTurn !== "end") finalizeTurn("bot");
@@ -1525,6 +1534,8 @@
         counterChain = 0;
         currentlyAskingRole = "";
         lastBotActionMsg = "";
+        currentNumber = "";
+        preActionNumber = "";
         initDeck();
         dealCards();
       }
