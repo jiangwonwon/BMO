@@ -795,7 +795,7 @@
         }
         discardPile.push(firstCard);
         currentColor = firstCard.color;
-        currentNumber = firstCard.value; // 記錄初始數字
+        currentNumber = firstCard.value;
 
         updateUI();
         setStatus("你的回合，請選擇卡牌。");
@@ -816,15 +816,12 @@
         if (card.actionType === "counter") return false;
         if (card.color === "action") return true;
         if (card.color === currentColor) return true;
-
-        // 修正：使用 currentNumber 檢查，不受功能牌蓋掉數字影響
         if (
           card.type === "number" &&
           currentNumber !== "" &&
           card.value === currentNumber
         )
           return true;
-
         if (
           card.type === "action" &&
           topCard.type === "action" &&
@@ -851,8 +848,6 @@
 
         document.getElementById("color-val").innerText =
           getTranslatedColor(currentColor);
-
-        // 修正：不受功能牌影響，持續顯示有效數字
         let valText = currentNumber !== "" ? currentNumber : "無";
         document.getElementById("number-val").innerText = valText;
 
@@ -926,7 +921,7 @@
         if (currentTurn !== "player") return;
 
         if (card.actionType === "counter") {
-          alert("「抵銷」牌只能在對手打出功能牌的瞬間被動發動喔！");
+          alert("「抵銷」牌只能在對手打出功能牌的瞬間發動喔！");
           return;
         }
 
@@ -1018,6 +1013,11 @@
         let counterCard = activeHand.splice(counterIndex, 1)[0];
         discardPile.push(counterCard);
 
+        // === BUG 修復：瞬間抵銷時自動豁免喊 BMO ===
+        if (currentlyAskingRole === "player" && playerHand.length === 1) {
+          bmoCalled = true;
+        }
+
         counterChain++;
         updateUI();
 
@@ -1047,7 +1047,7 @@
           resolveAction(originalCard, originalRole);
         } else if (counterChain % 2 === 1) {
           currentColor = preActionColor;
-          currentNumber = preActionNumber; // 恢復數字
+          currentNumber = preActionNumber;
 
           let chainCardsToBury = [];
           for (let i = 0; i <= counterChain; i++) {
@@ -1104,32 +1104,29 @@
       function resolveAction(card, role) {
         let opponentHand = role === "player" ? botHand : playerHand;
         let myHand = role === "player" ? playerHand : botHand;
+        let roleName = role === "player" ? "你" : "對手";
+        let targetName = role === "player" ? "對手" : "你";
 
-        let actionAlertMsg = "";
-        let botStatusMsg = "";
+        let detailMsg = "";
+        let statusMsg = "";
 
         if (card.actionType === "draw2") {
           drawCards(opponentHand, 2);
-          if (role === "player")
-            actionAlertMsg = `你使用「對方抽2張」，對手被罰抽了 2 張牌！`;
-          else botStatusMsg = `對手使用「對方抽2張」，你被罰抽了 2 張牌！`;
+          detailMsg = `${roleName}使用「對方抽2張」，${targetName}被罰抽了 2 張牌！`;
+          statusMsg = `對手使用「對方抽2張」，你被罰抽了 2 張牌`;
         } else if (card.actionType === "wildDraw2") {
           drawCards(opponentHand, 2);
           let cName = getTranslatedColor(currentColor);
-          if (role === "player")
-            actionAlertMsg = `你使用「指定色+抽2」，換成【${cName}】且對手被罰抽了 2 張牌！`;
-          else
-            botStatusMsg = `對手使用「指定色+抽2」，換成【${cName}】且你被罰抽了 2 張牌！`;
+          detailMsg = `${roleName}使用「指定色+抽2」，指定顏色換成【${cName}】，且${targetName}被罰抽了 2 張牌！`;
+          statusMsg = `對手使用「指定色+抽2」，換成【${cName}】且你被罰抽了 2 張牌`;
         } else if (card.actionType === "skip") {
-          if (role === "player")
-            actionAlertMsg = `你使用「PASS」，換到對手的回合！`;
-          else botStatusMsg = `對手使用「PASS」，換到你的回合！`;
+          detailMsg = `${roleName}使用「PASS」，換${targetName}的回合！`;
+          statusMsg = `對手使用「PASS」，換你的回合`;
         } else if (card.actionType === "bothDraw1") {
           drawCards(myHand, 1);
           drawCards(opponentHand, 1);
-          if (role === "player")
-            actionAlertMsg = `你使用「雙方抽1」，雙方各抽了 1 張牌！`;
-          else botStatusMsg = `對手使用「雙方抽1」，雙方各抽了 1 張牌！`;
+          detailMsg = `${roleName}使用「雙方抽1」，雙方各抽了 1 張牌！`;
+          statusMsg = `對手使用「雙方抽1」，雙方各抽了 1 張牌`;
         } else if (card.actionType === "steal") {
           if (discardPile.length >= 2) {
             let playedSteal = discardPile.pop();
@@ -1140,9 +1137,14 @@
             let newTop = discardPile[discardPile.length - 1];
             if (newTop.type === "number") {
               currentColor = newTop.color;
-              currentNumber = newTop.value; // 更新數字
+              currentNumber = newTop.value;
             } else if (newTop.color !== "action") {
               currentColor = newTop.color;
+            } else {
+              let lastNumCard = [...discardPile]
+                .reverse()
+                .find((c) => c.type === "number");
+              currentNumber = lastNumCard ? lastNumCard.value : "";
             }
 
             let colorName = getTranslatedColor(stolenCard.color);
@@ -1153,29 +1155,23 @@
                 ? cardName
                 : `${colorName} ${cardName}`;
 
-            if (role === "player")
-              actionAlertMsg = `你使用「偷牌」，拿走了：【${fullCardName}】！`;
-            else
-              botStatusMsg = `對手使用「拿最上層牌」，拿了：【${fullCardName}】！`;
+            detailMsg = `${roleName}使用「拿最上層牌」，拿了：【${fullCardName}】！`;
+            statusMsg = `對手使用「拿最上層牌」，拿了：【${fullCardName}】`;
           } else {
-            if (role === "player")
-              actionAlertMsg = `牌堆只有一張牌，你的「偷牌」無效！`;
-            else
-              botStatusMsg = `對手使用「拿最上層牌」，但牌堆只有一張而無效！`;
+            detailMsg = `牌堆只有一張牌，${roleName}的「拿最上層牌」無效！`;
+            statusMsg = `對手使用「拿最上層牌」，但牌堆只有一張而無效`;
           }
         } else if (card.actionType === "wild") {
           let cName = getTranslatedColor(currentColor);
-          if (role === "player")
-            actionAlertMsg = `你使用「指定顏色」，換成了【${cName}】！`;
-          else botStatusMsg = `對手使用「指定顏色」，換成了【${cName}】`;
+          statusMsg = `對手使用「指定顏色」，換成了【${cName}】`;
         }
 
-        if (role === "player" && actionAlertMsg) {
-          alert(actionAlertMsg);
+        if (role === "player" && detailMsg !== "") {
+          alert(detailMsg);
         }
 
-        if (role === "bot" && botStatusMsg) {
-          lastBotActionMsg = botStatusMsg;
+        if (role === "bot" && statusMsg !== "") {
+          lastBotActionMsg = statusMsg;
         }
 
         pendingActionData = null;
@@ -1242,7 +1238,7 @@
         }
 
         preActionColor = currentColor;
-        preActionNumber = currentNumber; // 記錄動作前數字
+        preActionNumber = currentNumber;
 
         let indicesToRemove = selectedCards
           .map((s) => s.index)
@@ -1252,13 +1248,12 @@
 
         let finalCard = playedCards[playedCards.length - 1];
         selectedCards = [];
-        lastBotActionMsg = "";
 
         if (finalCard.type === "action") {
           handleActionCard(finalCard, "player");
         } else {
           currentColor = finalCard.color;
-          currentNumber = finalCard.value; // 更新新數字
+          currentNumber = finalCard.value;
           updateUI();
           checkWinState();
           if (currentTurn !== "end") finalizeTurn("player");
@@ -1392,7 +1387,6 @@
           selectedCards = [];
           playerHand.push(card);
           bmoCalled = false;
-          lastBotActionMsg = "";
           updateUI();
           endTurn();
         }
@@ -1430,7 +1424,7 @@
           let playedCard = botHand.splice(playableIndex, 1)[0];
 
           preActionColor = currentColor;
-          preActionNumber = currentNumber; // 記錄動作前數字
+          preActionNumber = currentNumber;
           discardPile.push(playedCard);
 
           if (playedCard.type === "action") {
@@ -1439,11 +1433,17 @@
             let cardName =
               playedCard.type === "number" ? playedCard.value : playedCard.name;
             let colorName = getTranslatedColor(playedCard.color);
-            lastBotActionMsg = `對手出了：【${colorName} ${cardName}】`;
+
+            if (playedCard.color === "action") {
+              lastBotActionMsg = `對手出了：【${cardName}】`;
+            } else {
+              lastBotActionMsg = `對手出了：【${colorName} ${cardName}】`;
+            }
+
             setStatus(lastBotActionMsg);
 
             currentColor = playedCard.color;
-            currentNumber = playedCard.value; // 更新新數字
+            currentNumber = playedCard.value;
             updateUI();
             checkWinState();
             if (currentTurn !== "end") finalizeTurn("bot");
